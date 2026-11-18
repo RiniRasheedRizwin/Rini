@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NYC 311 Service Performance | Rini Rasheed</title>
+<meta name="description" content="Service-excellence review of New York City's 311 requests: channel shift, on-time performance against published service levels, SLA breaches and backlog. Refreshed weekly.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root {
+  --color-fg: #1f2328; --color-fg-muted: #5f6670; --color-bg: #f6f7f8; --color-panel: #ffffff; --color-border-line: #e3e6ea;
+  --color-ok: #15803d; --color-warn: #d97706; --color-bad: #dc2626;
+  --font-anthropic-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; --font-anthropic-serif: 'Source Serif 4', Georgia, serif;
+  --cds-font-size-caption: 13px; --cds-font-size-body: 15px; --cds-font-weight-medium: 600; --cds-radius: 10px;
+  --cds-chart-muted: #a3aab3; --cds-chart-status-critical: #dc2626; --cds-chart-grid: #eceef1; --cds-chart-axis: #c9ced4; --cds-chart-reference: #8a929c;
+  --cds-text-secondary: #5f6670; --cds-surface-popover: #ffffff; --cds-border: #dfe3e8; --cds-shadow-popover: 0 6px 20px rgba(0,0,0,.12);
+  --cds-dur-slow: .25s; --cds-ease-out: cubic-bezier(.2,.7,.3,1);
+  --series-1: #2563eb; --series-2: #f59e0b;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --color-fg: #e8eaed; --color-fg-muted: #a0a7b0; --color-bg: #111418; --color-panel: #1a1e24; --color-border-line: #2b3139;
+    --color-ok: #4ade80; --color-warn: #fbbf24; --color-bad: #f87171; --cds-chart-muted: #6b7380; --cds-chart-status-critical: #f87171;
+    --cds-chart-grid: #252a31; --cds-chart-axis: #3a414b; --cds-chart-reference: #8a929c; --cds-text-secondary: #a0a7b0;
+    --cds-surface-popover: #222830; --cds-border: #333a44; --series-1: #60a5fa; --series-2: #fbbf24; }
+}
+html, body { margin: 0; background: var(--color-bg); }
+body { padding: 20px 16px 40px; }
+.n3 { --n3-a1: #0f3d4a; --n3-a2: #0d9488; container-type: inline-size; font-family: var(--font-anthropic-sans); color: var(--color-fg); max-width: 1240px; margin: 0 auto; }
+.n3 * { box-sizing: border-box; }
+.n3-back { display: inline-block; font-size: 13px; color: var(--n3-a2); text-decoration: none; margin-bottom: 10px; }
+.n3-head { background: linear-gradient(120deg, var(--n3-a1), #0f766e); color: #fff; border-radius: var(--cds-radius); padding: 18px 22px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+.n3-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: 1.6rem; margin: 0; line-height: 1.2; color: #fff; }
+.n3-head p { margin: 3px 0 0; font-size: 13px; color: rgba(255,255,255,.82); }
+.n3-meta { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.n3-meta li { font-size: 12px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 3px 10px; color: #fff; }
+.n3-tabs { position: sticky; top: 0; z-index: 6; background: var(--color-bg); display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--color-border-line); margin: 10px 0 14px; }
+.n3-tab { font: inherit; font-size: 13px; font-weight: 600; color: var(--color-fg-muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; cursor: pointer; white-space: nowrap; }
+.n3-tab:hover { color: var(--color-fg); }
+.n3-tab.n3-on { color: var(--n3-a2); border-bottom-color: var(--n3-a2); }
+.n3-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.n3-kpi { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: 14px 16px; position: relative; overflow: hidden; }
+.n3-kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--n3-a2); }
+.n3-kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--color-fg-muted); margin: 0 0 6px; }
+.n3-big { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: 1.9rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.n3-kpi-sub { font-size: 12px; color: var(--color-fg-muted); margin: 6px 0 0; }
+.n3-delta { font-weight: 600; font-variant-numeric: tabular-nums; }
+.n3-good { color: var(--color-ok); }
+.n3-bad { color: var(--color-bad); }
+.n3-spark { height: 30px; margin-top: 8px; }
+.n3-meter { height: 6px; margin-top: 10px; border-radius: 3px; background: var(--color-border-line); overflow: hidden; }
+.n3-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@container (min-width: 760px) { .n3-grid { grid-template-columns: 1fr 1fr; } .n3-wide { grid-column: span 2; } }
+.n3-panel { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: 14px 16px 16px; min-width: 0; }
+.n3-panel > header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+.n3-panel h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.n3-panel h2 + p, .n3-sub { font-size: 12px; color: var(--color-fg-muted); margin: 2px 0 0; line-height: 1.45; }
+.n3-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--color-fg-muted); }
+.n3-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.n3-sw-bad { background: var(--cds-chart-status-critical); }
+.n3-sw-base { background: var(--series-1); }
+.n3-sw-muted { background: var(--cds-chart-muted); }
+.n3-seg { display: inline-flex; border: 1px solid var(--color-border-line); border-radius: 999px; overflow: hidden; }
+.n3-segbtn { font: inherit; font-size: 12px; padding: 5px 12px; border: 0; background: none; color: var(--color-fg-muted); cursor: pointer; }
+.n3-segbtn.n3-on { background: var(--n3-a2); color: #fff; }
+.n3-chart { position: relative; width: 100%; min-height: 200px; }
+.n3-chart svg { display: block; overflow: visible; }
+.n3-chart text { font-size: 12px; fill: var(--cds-text-secondary); font-family: var(--font-anthropic-sans); }
+.n3-chart .n3-lbl { fill: var(--color-fg); }
+.n3-chart .tick line, .n3-chart .domain { stroke: var(--cds-chart-axis); }
+.n3-chart .n3-gl line { stroke: var(--cds-chart-grid); }
+.n3-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); box-shadow: var(--cds-shadow-popover); border-radius: 8px; padding: 6px 9px; font-size: 12px; line-height: 1.45; white-space: pre-line; color: var(--color-fg); z-index: 5; max-width: 260px; }
+.n3-find { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.n3-find li { border-left: 3px solid var(--n3-a2); padding: 4px 0 4px 12px; }
+.n3-find strong { display: block; font-size: 13px; font-weight: 600; }
+.n3-find span.n3-t { font-size: 12px; color: var(--color-fg-muted); line-height: 1.45; }
+.n3-find b { color: var(--color-fg); font-variant-numeric: tabular-nums; }
+.n3-tablewrap { overflow-x: auto; }
+.n3-table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+.n3-table th, .n3-table td { padding: 7px 10px; border-bottom: 1px solid var(--color-border-line); text-align: right; white-space: nowrap; }
+.n3-table th:first-child, .n3-table td:first-child, .n3-table th:nth-child(2), .n3-table td:nth-child(2) { text-align: left; }
+.n3-table th { color: var(--color-fg-muted); font-weight: 600; }
+.n3-prof-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.n3-prof-stats div { border: 1px solid var(--color-border-line); border-radius: 8px; padding: 8px 10px; }
+.n3-prof-stats span { display: block; font-size: 11px; color: var(--color-fg-muted); }
+.n3-prof-stats b { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.n3-prof-name { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+.n3-select { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); max-width: 100%; }
+.n3-buckets { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.n3-bucket { border: 1px solid var(--color-border-line); border-top: 4px solid var(--cds-chart-muted); border-radius: var(--cds-radius); padding: 12px 14px; }
+.n3-b1 { border-top-color: var(--color-bad); }
+.n3-b2 { border-top-color: var(--color-warn); }
+.n3-bucket h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.n3-b1 h3 { color: var(--color-bad); }
+.n3-bucket > p { margin: 2px 0 10px; font-size: 12px; color: var(--color-fg-muted); }
+.n3-bucket ol { margin: 0; padding-left: 1.3em; }
+.n3-bucket li { margin-bottom: 8px; font-size: 13px; }
+.n3-bucket li span { display: block; font-size: 12px; color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.n3-recnote { font-size: 12px; color: var(--color-fg-muted); margin: 0 0 10px; }
+.n3-recs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.n3-rec { background: var(--color-panel); border: 1px solid var(--color-border-line); border-top: 3px solid var(--n3-a2); border-radius: var(--cds-radius); padding: 14px 16px; }
+.n3-rec h2 { margin: 0 0 8px; font-size: 15px; font-weight: 600; display: flex; gap: 8px; }
+.n3-rec h2 span { color: var(--n3-a2); font-family: var(--font-anthropic-serif); }
+.n3-rec p { margin: 0 0 6px; font-size: 13px; line-height: 1.55; }
+.n3-tag { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--color-fg-muted); margin-right: 4px; }
+.n3-panel p.n3-body, .n3-panel li { font-size: 13px; line-height: 1.55; }
+.n3-panel ol, .n3-panel ul.n3-list { padding-left: 1.2em; margin: 0 0 10px; }
+.n3-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; padding: 0; list-style: none; }
+.n3-chips li { font-size: 12px; border: 1px solid var(--n3-a2); color: var(--n3-a2); border-radius: 999px; padding: 3px 10px; }
+.n3-foot { font-size: 12px; color: var(--color-fg-muted); line-height: 1.5; margin-top: 14px; }
+.n3-foot a, .n3-panel a { color: var(--n3-a2); }
+.n3-error { padding: 16px; border: 1px solid var(--color-bad); border-radius: var(--cds-radius); color: var(--color-bad); margin-bottom: 12px; font-size: 13px; }
+@media print { .n3-tabs, .n3-back { display: none; } .n3-tabpanel[hidden] { display: block !important; } }
+</style>
+</head>
+<body>
+<div class="n3">
+<a class="n3-back" href="../index.html">← Back to portfolio</a>
+<header class="n3-head" id="top">
+  <div>
+    <h1>NYC 311 Service Performance</h1>
+    <p>Service-excellence review of New York City's 311 requests · Portfolio case study by Rini Rasheed</p>
+  </div>
+  <ul class="n3-meta"><li data-draw="val" data-source="kpi" data-field="period_label">—</li><li>Source: NYC Open Data</li><li>Refreshed weekly · <span data-draw="val" data-source="kpi" data-field="as_of_label">—</span></li></ul>
+</header>
+<div class="n3-error" id="load-error" hidden>The latest data could not be loaded. Please refresh the page in a moment.</div>
+
+<nav class="n3-tabs" role="tablist" aria-label="Dashboard views">
+  <button class="n3-tab n3-on" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+  <button class="n3-tab" role="tab" data-tab="agencies" aria-selected="false">Agencies</button>
+  <button class="n3-tab" role="tab" data-tab="fixfirst" aria-selected="false">Fix first</button>
+  <button class="n3-tab" role="tab" data-tab="recommendations" aria-selected="false">Recommendations</button>
+  <button class="n3-tab" role="tab" data-tab="about" aria-selected="false">About</button>
+</nav>
+
+<section class="n3-tabpanel" id="overview" role="tabpanel" aria-label="Overview">
+  <div class="n3-kpis">
+    <div class="n3-kpi"><p class="n3-kpi-label">Requests</p><div class="n3-big" data-draw="val" data-fmt="int" data-source="kpi" data-field="requests">—</div><p class="n3-kpi-sub"><span class="n3-delta" data-draw="val" data-fmt="signpct" data-source="yoy" data-field="requests_change_pct">—</span> vs <span data-draw="val" data-source="kpi" data-field="prev_year_label">—</span></p></div>
+    <div class="n3-kpi"><p class="n3-kpi-label">Online or app</p><div class="n3-big" data-draw="val" data-fmt="pct" data-source="kpi" data-field="digital_pct">—</div><p class="n3-kpi-sub"><span class="n3-delta" data-good="up" data-draw="val" data-fmt="signpts" data-source="yoy" data-field="digital_change_pts">—</span> vs <span data-draw="val" data-source="kpi" data-field="prev_year_label">—</span></p><div class="n3-spark" data-draw="spark"></div></div>
+    <div class="n3-kpi"><p class="n3-kpi-label">Closed within target</p><div class="n3-big" data-draw="val" data-fmt="pct" data-source="kpi" data-field="within_sla_pct">—</div><p class="n3-kpi-sub"><span class="n3-delta n3-bad" data-draw="val" data-fmt="int" data-source="kpi" data-field="late">—</span> closed late</p><div class="n3-meter" data-draw="meter"></div></div>
+    <div class="n3-kpi"><p class="n3-kpi-label">Median time to close</p><div class="n3-big" data-draw="val" data-fmt="hrs" data-source="kpi" data-field="median_hrs">—</div><p class="n3-kpi-sub">Half of closed requests took less</p></div>
+    <div class="n3-kpi"><p class="n3-kpi-label">Still open</p><div class="n3-big" data-draw="val" data-fmt="int" data-source="kpi" data-field="open">—</div><p class="n3-kpi-sub"><span data-draw="val" data-fmt="pct" data-source="kpi" data-field="open_pct">—</span> of the month's requests, as of <span data-draw="val" data-source="kpi" data-field="as_of_label">—</span></p></div>
+  </div>
+  <div class="n3-grid">
+    <article class="n3-panel">
+      <header><div><h2>Online/app vs. direct calls</h2><p>Share of requests by month, Jan 2022 to <span data-draw="val" data-source="kpi" data-field="period_label">—</span></p></div></header>
+      <div class="n3-chart" data-draw="trend">—</div>
+    </article>
+    <article class="n3-panel">
+      <header><div><h2>Key findings</h2><p>What the latest month's data says</p></div></header>
+      <ul class="n3-find">
+        <li><strong>Where most breaches come from</strong><span class="n3-t"><b data-draw="agencyName" data-field="top_late_agency">—</b> accounts for <b data-draw="val" data-fmt="pct" data-source="kpi" data-field="top_late_share">—</b> of all requests closed late in the city.</span></li>
+        <li><strong>Hardest target to hit</strong><span class="n3-t"><b data-draw="hardType">—</b> requests meet their <span data-draw="val" data-source="kpi" data-field="hard_target">—</span> target only <b data-draw="val" data-fmt="pct" data-source="kpi" data-field="hard_within_pct">—</b> of the time.</span></li>
+        <li><strong>Where calls are still common</strong><span class="n3-t">Only <b data-draw="val" data-fmt="pct" data-source="kpi" data-field="low_digital_pct">—</b> of requests to <b data-draw="agencyName" data-field="low_digital_agency">—</b> arrive online or by app.</span></li>
+      </ul>
+    </article>
+    <article class="n3-panel">
+      <header><div><h2>Online/app share by agency</h2><p>Lowest first · agencies with no recorded channel are not shown</p></div></header>
+      <div class="n3-chart" data-draw="agencyDigital">—</div>
+    </article>
+    <article class="n3-panel">
+      <header><div><h2>Open backlog by agency</h2><p>Requests from the month still open, by age</p></div></header>
+      <div class="n3-chart" data-draw="backlog">—</div>
+    </article>
+  </div>
+</section>
+
+<section class="n3-tabpanel" id="agencies" role="tabpanel" aria-label="Agencies" hidden>
+  <div class="n3-grid">
+    <article class="n3-panel">
+      <header><div><h2>On-time rate by agency</h2><p>Closed within the city's published target</p></div>
+        <div class="n3-legend"><span><i class="n3-sw n3-sw-bad"></i>Below citywide</span><span><i class="n3-sw n3-sw-base"></i>At or above</span></div></header>
+      <div class="n3-chart" data-draw="slaBars">—</div>
+    </article>
+    <article class="n3-panel">
+      <header><div><h2>Agency profile</h2><p>Pick an agency to see its numbers and top complaint types</p></div>
+        <select class="n3-select" data-draw="agencyPick" aria-label="Agency"></select></header>
+      <div data-draw="profile">—</div>
+    </article>
+    <article class="n3-panel n3-wide">
+      <header><div><h2>All agencies</h2><p>Times in days · Within target is measured against each request's own target</p></div></header>
+      <div class="n3-tablewrap">
+        <table class="n3-table">
+          <thead><tr><th>Agency</th><th>Service area</th><th>Requests</th><th>Online or app %</th><th>Median days</th><th>Slowest 10% (days)</th><th>Most common target</th><th>Within target %</th><th>Median delay beyond target (days)</th><th>Still open</th></tr></thead>
+          <tbody data-draw="agencyTable"></tbody>
+        </table>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="n3-tabpanel" id="fixfirst" role="tabpanel" aria-label="Fix first" hidden>
+  <div class="n3-grid">
+    <article class="n3-panel n3-wide">
+      <header><div><h2>SLA breaches by complaint type</h2><p>Top 10 · Rank by how many requests missed their target, or by how far past the target they went</p></div>
+        <div class="n3-seg" role="group" aria-label="Rank by"><button class="n3-segbtn n3-on" data-mode="count" aria-pressed="true">Number of breaches</button><button class="n3-segbtn" data-mode="delay" aria-pressed="false">How late</button></div></header>
+      <div class="n3-legend" style="margin-bottom:8px"><span><i class="n3-sw n3-sw-bad"></i>Agency with the most breaches</span><span><i class="n3-sw n3-sw-muted"></i>Other agencies</span></div>
+      <div class="n3-chart" data-draw="breachBars">—</div>
+    </article>
+    <article class="n3-panel n3-wide">
+      <header><div><h2>Priority list</h2><p>Complaint types grouped by how many requests missed their target (2,000 or more = many) and how late they were (median delay of 3+ days = long)</p></div></header>
+      <div class="n3-buckets">
+        <section class="n3-bucket n3-b1"><h3>Fix first</h3><p>Many breaches and long delays</p><ol data-draw="bucket" data-bucket="fix"></ol></section>
+        <section class="n3-bucket n3-b2"><h3>Speed up</h3><p>Many breaches, but only hours late</p><ol data-draw="bucket" data-bucket="speed"></ol></section>
+        <section class="n3-bucket n3-b3"><h3>Watch</h3><p>Fewer breaches, but long delays</p><ol data-draw="bucket" data-bucket="watch"></ol></section>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="n3-tabpanel" id="recommendations" role="tabpanel" aria-label="Recommendations" hidden>
+  <p class="n3-recnote">Written from my review of October 2026. The figures quoted here are from that month; the other tabs show the latest data.</p>
+  <div class="n3-recs">
+    <article class="n3-rec"><h2><span>1</span>Fix the housing repair journey first</h2>
+      <p><span class="n3-tag">Evidence</span>Housing (HPD) caused 56.6% of all late requests. Plumbing, door/window and water-leak complaints have a 3-day target, but only 25.7%, 14.5% and 14.1% closed on time.</p>
+      <p><span class="n3-tag">Fix</span>Map the value stream from complaint to inspection to repair and find where cases wait. Triage at intake: urgent repairs on a fast track, routine ones scheduled with a date the resident can see.</p></article>
+    <article class="n3-rec"><h2><span>2</span>Re-baseline targets that measure the wrong thing</h2>
+      <p><span class="n3-tag">Evidence</span>Homeless-assistance requests have a 1-hour target and only 8.2% met it.</p>
+      <p><span class="n3-tag">Fix</span>A target that is almost never met usually measures closure when it should measure first response. Define "responded" and "resolved" separately and set a target for each.</p></article>
+    <article class="n3-rec"><h2><span>3</span>Work the ageing backlog on a fixed cadence</h2>
+      <p><span class="n3-tag">Evidence</span>4,546 Housing requests from October were still open more than 30 days later.</p>
+      <p><span class="n3-tag">Fix</span>A weekly ageing review, with automatic escalation at twice the target, stops cases from silently going stale.</p></article>
+    <article class="n3-rec"><h2><span>4</span>Close the digital gap where calls are still common</h2>
+      <p><span class="n3-tag">Evidence</span>Consumer and Worker Protection (DCWP) received only 58.4% of its requests online or by app, and Parks (DPR) 61.7%.</p>
+      <p><span class="n3-tag">Fix</span>Guided online forms with photo and location capture, plus status updates pushed to the resident, cut calls and repeat contacts: the same "effortless service" logic behind Abu Dhabi's TAMM.</p></article>
+    <article class="n3-rec"><h2><span>5</span>Fix the data before the dashboard</h2>
+      <p><span class="n3-tag">Evidence</span>5,333 requests were closed in under a minute or before they were opened, and 6.9% had no recorded channel.</p>
+      <p><span class="n3-tag">Fix</span>Standard closure codes and mandatory channel capture make performance reporting trustworthy.</p></article>
+  </div>
+</section>
+
+<section class="n3-tabpanel" id="about" role="tabpanel" aria-label="About" hidden>
+  <div class="n3-grid">
+    <article class="n3-panel">
+      <header><div><h2>About this project</h2><p>Rini Rasheed · Business Process Analyst · Abu Dhabi, UAE</p></div></header>
+      <p class="n3-body">I built this case study to show how I approach service performance: define the service journey, measure it against its own targets, find where demand and delay meet, and turn that into improvement actions.</p>
+      <ol>
+        <li><b>Data:</b> every 311 request created in the latest full month, the city's published service-level table and a monthly channel history since 2022.</li>
+        <li><b>Cleaning:</b> matched each request to its target, removed impossible close times and flagged records with no channel.</li>
+        <li><b>Analysis:</b> cycle time, on-time compliance, SLA breaches by volume and delay, backlog ageing and channel shift.</li>
+        <li><b>Automation:</b> a scheduled job refreshes the data every week, so the dashboard always shows the latest full month.</li>
+      </ol>
+      <ul class="n3-chips" aria-label="Skills shown"><li>Process analysis</li><li>Service-level design</li><li>Lean Six Sigma Black Belt</li><li>Value stream thinking</li><li>KPI design</li><li>Data cleaning</li><li>Data storytelling</li></ul>
+      <p class="n3-body"><a href="https://www.linkedin.com/in/rini-rasheed-35b690a3/">Connect on LinkedIn</a></p>
+    </article>
+    <article class="n3-panel">
+      <header><div><h2>How this was measured</h2><p>Sources, matching rules and exclusions</p></div></header>
+      <ul class="n3-list">
+        <li>Requests: NYC Open Data "311 Service Requests from 2020 to Present" (erm2-nwe9), all requests created in <span data-draw="val" data-source="kpi" data-field="period_label">—</span>, refreshed on <span data-draw="val" data-source="kpi" data-field="as_of_label">—</span>.</li>
+        <li>Targets: NYC Open Data "311 Service Level Agreements" (cs9t-e3x8), matched by agency and complaint type; where a type lists several targets, the most common is used. <span data-draw="val" data-fmt="pct" data-source="kpi" data-field="sla_coverage_pct">—</span> of requests matched a target.</li>
+        <li>Time to close = closed date minus created date. <span data-draw="val" data-fmt="int" data-source="kpi" data-field="excluded_bad_times">—</span> requests closed in under one minute, or before they were created, are left out of speed and target figures.</li>
+        <li>Online or app share is measured against requests with a known channel (online, app or direct call to 311). <span data-draw="val" data-fmt="pct" data-source="kpi" data-field="unknown_channel_pct">—</span> of requests have no recorded channel.</li>
+        <li>Delay beyond target is the median for requests that missed their target.</li>
+      </ul>
+    </article>
+  </div>
+</section>
+
+<p class="n3-foot">Data: City of New York, <a href="https://opendata.cityofnewyork.us/">NYC Open Data</a> (311 Service Requests; 311 Service Level Agreements). Analysis and dashboard: Rini Rasheed.</p>
+</div>
+
+<script>
+/* ---- tiny data layer: loads data/*.json, runs calculations and redraws ---- */
+window.dash = (() => {
+  const files = ['kpi', 'agency_perf', 'complaint_perf', 'backlog', 'trend'];
+  const store = {}, calcs = [], draws = new Map();
+  let status = 'loading';
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const api = {
+    colors: [],
+    data: (id) => ({ status: id in store ? 'ok' : status, data: id in store ? store[id] : [] }),
+    calc: (id, spec) => calcs.push({ id, ...spec }),
+    draw: (name, fn) => {
+      if (fn) { draws.set(name, fn); return; }
+      const f = draws.get(name); if (!f) return;
+      for (const el of document.querySelectorAll(`[data-draw="${name}"]`)) { try { f(el); } catch (e) { console.error(name, e); } }
+    },
+    redraw: () => { for (const n of draws.keys()) api.draw(n); },
+    setLink: (id) => history.replaceState(null, '', '#' + id)
+  };
+  const ready = () => {
+    api.colors = [css('--series-1'), css('--series-2')];
+    for (const c of calcs) store[c.id] = c.fn(...c.inputs.map((i) => store[i] || []));
+    api.redraw();
+  };
+  window.addEventListener('DOMContentLoaded', () => {
+    api.colors = [css('--series-1'), css('--series-2')];
+    api.redraw();
+    Promise.all(files.map((f) => fetch(`data/${f}.json`, { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error(f); return r.json(); })))
+      .then((all) => { all.forEach((j, i) => { store[files[i]] = j.rows; }); status = 'ok'; ready(); })
+      .catch((e) => { console.error(e); status = 'error'; document.getElementById('load-error').hidden = false; api.redraw(); });
+    let t; window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(api.redraw, 150); });
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { api.colors = [css('--series-1'), css('--series-2')]; api.redraw(); });
+  });
+  return api;
+})();
+</script>
+
+<script>
+window.N3 = (() => {
+  const sign = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
+  const f = {
+    int: (v) => d3.format(',')(Math.round(v)), pct: (v) => (+v).toFixed(1) + '%', hrs: (v) => (+v).toFixed(1) + ' hours', h1: (v) => (+v).toFixed(1),
+    signpct: (v) => sign(v) + Math.abs(v).toFixed(1) + '%', signpts: (v) => sign(v) + Math.abs(v).toFixed(1) + ' pts', text: (v) => String(v)
+  };
+  const fmt = (v, kind) => (v === null || v === undefined || v === '' || Number.isNaN(v)) ? '—' : (f[kind] || f.text)(v);
+  const dur = (h) => h === null || h === undefined ? '—' : h < 48 ? `${(+h).toFixed(1)} hours` : `${(h / 24).toFixed(1)} days`;
+  const width = (el) => Math.max(260, el.clientWidth || 560);
+  const tip = (el) => {
+    const t = document.createElement('div'); t.className = 'n3-tip'; t.hidden = true; el.appendChild(t);
+    return {
+      show(ev, text) { const b = el.getBoundingClientRect(); t.textContent = text; t.hidden = false;
+        let x = ev.clientX - b.left + 12, y = ev.clientY - b.top + 12;
+        if (x + 240 > b.width) x = Math.max(0, x - 260);
+        t.style.left = x + 'px'; t.style.top = y + 'px'; },
+      hide() { t.hidden = true; }
+    };
+  };
+  const ready = (...ids) => ids.every((id) => dash.data(id).status === 'ok');
+  const placeholder = (el) => el.replaceChildren(document.createTextNode(dash.data('kpi').status === 'error' ? 'Failed to load' : '—'));
+  const measure = (svg, labels) => {
+    const t = svg.append('text').attr('class', 'n3-lbl');
+    let w = 0; for (const l of labels) { t.text(l); w = Math.max(w, t.node().getComputedTextLength()); }
+    t.remove(); return w;
+  };
+  const hbar = (el, rows, max, aria) => {
+    el.replaceChildren();
+    const W = width(el), rowH = 26;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('role', 'img').attr('aria-label', aria);
+    if (measure(svg, rows.map((r) => r.label)) + 10 > W * 0.45) rows = rows.map((r) => ({ ...r, label: r.short || r.label }));
+    const lw = Math.min(W * 0.45, measure(svg, rows.map((r) => r.label)) + 10);
+    const vw = measure(svg, rows.map((r) => r.text)) + 8;
+    const H = rows.length * rowH + 4;
+    svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    const x = d3.scaleLinear().domain([0, max || 1]).range([0, Math.max(40, W - lw - vw)]);
+    const tt = tip(el);
+    const g = svg.selectAll('g.r').data(rows).join('g').attr('class', 'r').attr('transform', (d, i) => `translate(0,${i * rowH})`);
+    g.append('rect').attr('x', lw).attr('y', 5).attr('height', rowH - 10).attr('width', Math.max(40, W - lw - vw)).attr('rx', 2).style('fill', 'var(--cds-chart-grid)');
+    g.append('text').attr('class', 'n3-lbl').attr('x', lw - 8).attr('y', rowH / 2).attr('dy', '0.35em').attr('text-anchor', 'end').text((d) => d.label);
+    g.append('rect').attr('x', lw).attr('y', 5).attr('height', rowH - 10).attr('rx', 2).attr('width', (d) => Math.max(1, x(d.value))).style('fill', (d) => d.color || dash.colors[0]);
+    g.append('text').attr('x', (d) => lw + x(d.value) + 5).attr('y', rowH / 2).attr('dy', '0.35em').text((d) => d.text);
+    g.append('rect').attr('x', 0).attr('width', W).attr('height', rowH).style('fill', 'transparent')
+      .on('pointermove', (ev, d) => tt.show(ev, d.tipText)).on('pointerleave', () => tt.hide());
+  };
+  const names = { NYPD: 'Police – noise & parking', HPD: 'Housing repairs', DSNY: 'Sanitation – waste & cleaning', DOT: 'Transport – roads & street lights',
+    DEP: 'Environment – water & noise', DPR: 'Parks & trees', DOB: 'Buildings & construction', DHS: 'Homeless services',
+    DOHMH: 'Health – food safety & pests', TLC: 'Taxis & ride-hailing', DCWP: 'Consumer & worker protection', EDC: 'Economic development', OTI: 'Technology & innovation' };
+  const name = (a) => names[a] ? `${a} (${names[a]})` : a;
+  const below = (v, city) => v < city ? 'var(--cds-chart-status-critical)' : dash.colors[0];
+  const cap = (s) => s.charAt(0) + s.slice(1).toLowerCase();
+  return { fmt, dur, width, tip, ready, placeholder, measure, hbar, name, names, below, cap, pick: null, breach: 'count' };
+})();
+
+(() => {
+  const tabs = [...document.querySelectorAll('.n3-tab')], panels = [...document.querySelectorAll('.n3-tabpanel')];
+  const show = (id, link) => {
+    if (!panels.some((p) => p.id === id)) return;
+    for (const p of panels) p.hidden = p.id !== id;
+    for (const t of tabs) { const on = t.dataset.tab === id; t.classList.toggle('n3-on', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); }
+    if (link) dash.setLink(id);
+    dash.redraw();
+  };
+  for (const t of tabs) t.addEventListener('click', () => show(t.dataset.tab, true));
+  const start = location.hash.slice(1);
+  if (start) show(start, false);
+  window.addEventListener('hashchange', () => show(location.hash.slice(1) || 'overview', false));
+  for (const b of document.querySelectorAll('.n3-segbtn')) b.addEventListener('click', () => {
+    N3.breach = b.dataset.mode;
+    for (const o of document.querySelectorAll('.n3-segbtn')) { const on = o === b; o.classList.toggle('n3-on', on); o.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    dash.draw('breachBars');
+  });
+})();
+</script>
+
+<script>
+dash.calc('channel_monthly', {
+  inputs: ['trend', 'kpi'],
+  fn: (trend, kpi) => {
+    const last = kpi[0] ? kpi[0].period_month : '9999-12', m = new Map();
+    for (const r of trend) {
+      if (r.month > last) continue;
+      if (!m.has(r.month)) m.set(r.month, { dig: 0, ph: 0 });
+      const a = m.get(r.month);
+      if (r.channel === 'ONLINE' || r.channel === 'MOBILE') a.dig += +r.requests; else if (r.channel === 'PHONE') a.ph += +r.requests;
+    }
+    return [...m].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([month, a]) => ({ month, known: a.dig + a.ph,
+      digital_pct: Math.round(1000 * a.dig / (a.dig + a.ph)) / 10, phone_pct: Math.round(1000 * a.ph / (a.dig + a.ph)) / 10 }));
+  }
+});
+dash.calc('yoy', {
+  inputs: ['trend', 'channel_monthly', 'kpi'],
+  fn: (trend, monthly, kpi) => {
+    if (!kpi[0]) return [];
+    const cur = kpi[0].period_month, prev = kpi[0].prev_year_month;
+    const total = (m) => trend.filter((r) => r.month === m).reduce((s, r) => s + (+r.requests), 0);
+    const a = total(prev), b = total(cur), da = monthly.find((r) => r.month === prev), db = monthly.find((r) => r.month === cur);
+    return [{ requests_change_pct: a ? Math.round(1000 * (b - a) / a) / 10 : null, digital_change_pts: da && db ? Math.round(10 * (db.digital_pct - da.digital_pct)) / 10 : null }];
+  }
+});
+
+dash.draw('val', (el) => {
+  const d = dash.data(el.dataset.source);
+  const row = d.status === 'ok' && Array.isArray(d.data) ? d.data[0] : null;
+  const v = row ? row[el.dataset.field] : null;
+  el.textContent = N3.fmt(v, el.dataset.fmt);
+  if (el.dataset.good && typeof v === 'number') {
+    const good = el.dataset.good === 'up' ? v > 0 : v < 0;
+    el.classList.toggle('n3-good', good && v !== 0); el.classList.toggle('n3-bad', !good && v !== 0);
+  }
+});
+dash.draw('agencyName', (el) => {
+  const k = dash.data('kpi'); el.textContent = k.status === 'ok' ? N3.name(k.data[0][el.dataset.field]) : '—';
+});
+dash.draw('hardType', (el) => {
+  const k = dash.data('kpi'); el.textContent = k.status === 'ok' ? `${N3.cap(k.data[0].hard_type)} (${k.data[0].hard_agency})` : '—';
+});
+
+dash.draw('spark', (el) => {
+  if (!N3.ready('kpi')) { el.replaceChildren(); return; }
+  const rows = dash.data('channel_monthly').data; if (!rows.length) return;
+  el.replaceChildren();
+  const W = Math.max(120, el.clientWidth || 160), H = 30;
+  const x = d3.scaleLinear().domain([0, rows.length - 1]).range([2, W - 4]);
+  const y = d3.scaleLinear().domain(d3.extent(rows, (r) => r.digital_pct)).range([H - 3, 3]);
+  const svg = d3.select(el).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Monthly online/app share since January 2022');
+  svg.append('path').datum(rows).attr('fill', 'none').style('stroke', '#0d9488').attr('stroke-width', 1.75).attr('d', d3.line().x((r, i) => x(i)).y((r) => y(r.digital_pct)));
+  svg.append('circle').attr('cx', x(rows.length - 1)).attr('cy', y(rows[rows.length - 1].digital_pct)).attr('r', 2.5).style('fill', '#0d9488');
+});
+
+dash.draw('meter', (el) => {
+  if (!N3.ready('kpi')) { el.replaceChildren(); return; }
+  const v = dash.data('kpi').data[0].within_sla_pct, bar = document.createElement('div');
+  bar.style.cssText = `height:100%;width:${Math.max(0, Math.min(100, v))}%;background:#0d9488`;
+  el.replaceChildren(bar);
+});
+
+dash.draw('trend', (el) => {
+  if (!N3.ready('kpi')) return N3.placeholder(el);
+  const rows = dash.data('channel_monthly').data.map((r) => ({ ...r, date: d3.utcParse('%Y-%m')(r.month) }));
+  el.replaceChildren();
+  const W = N3.width(el), H = 230, m = { t: 12, r: 104, b: 26, l: 40 };
+  const svg = d3.select(el).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Line chart of online/app and direct-call share of 311 requests by month');
+  const x = d3.scaleUtc().domain(d3.extent(rows, (r) => r.date)).range([m.l, W - m.r]);
+  const y = d3.scaleLinear().domain([0, 100]).range([H - m.b, m.t]);
+  svg.append('g').attr('class', 'n3-gl').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.l - m.r)).tickFormat((d) => d + '%')).call((g) => g.select('.domain').remove());
+  svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(W < 500 ? d3.utcYear.every(2) : d3.utcYear.every(1)).tickFormat(d3.utcFormat('%Y')));
+  const series = [{ key: 'digital_pct', name: 'Online/app', color: dash.colors[0] }, { key: 'phone_pct', name: 'Direct call', color: dash.colors[1] }];
+  const last = rows[rows.length - 1];
+  for (const s of series) {
+    svg.append('path').datum(rows).attr('fill', 'none').style('stroke', s.color).attr('stroke-width', 2.25).attr('d', d3.line().x((r) => x(r.date)).y((r) => y(r[s.key])));
+    svg.append('circle').attr('cx', x(last.date)).attr('cy', y(last[s.key])).attr('r', 3.5).style('fill', s.color);
+    svg.append('text').attr('class', 'n3-lbl').attr('x', x(last.date) + 8).attr('y', y(last[s.key])).attr('dy', '0.35em').text(`${s.name} ${N3.fmt(last[s.key], 'pct')}`);
+  }
+  const tt = N3.tip(el), guide = svg.append('line').style('stroke', 'var(--cds-chart-reference)').attr('y1', m.t).attr('y2', H - m.b).attr('visibility', 'hidden');
+  svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).style('fill', 'transparent')
+    .on('pointermove', (ev) => {
+      const [px] = d3.pointer(ev);
+      const r = rows[Math.max(0, Math.min(rows.length - 1, d3.bisector((d) => d.date).center(rows, x.invert(px))))];
+      guide.attr('x1', x(r.date)).attr('x2', x(r.date)).attr('visibility', 'visible');
+      tt.show(ev, `${d3.utcFormat('%b %Y')(r.date)}\nOnline/app: ${N3.fmt(r.digital_pct, 'pct')}\nDirect call: ${N3.fmt(r.phone_pct, 'pct')}\nRequests (known channel): ${N3.fmt(r.known, 'int')}`);
+    }).on('pointerleave', () => { tt.hide(); guide.attr('visibility', 'hidden'); });
+});
+
+dash.draw('agencyDigital', (el) => {
+  if (!N3.ready('agency_perf')) return N3.placeholder(el);
+  const rows = dash.data('agency_perf').data.filter((r) => r.digital_pct !== null).sort((a, b) => a.digital_pct - b.digital_pct)
+    .map((r) => ({ label: N3.name(r.agency), short: r.agency, value: r.digital_pct, text: N3.fmt(r.digital_pct, 'pct'),
+      tipText: `${N3.name(r.agency)}\nOnline or app: ${N3.fmt(r.digital_pct, 'pct')}\nRequests: ${N3.fmt(r.requests, 'int')}` }));
+  N3.hbar(el, rows, 100, 'Bar chart of the share of requests arriving online or by app, by agency');
+});
+
+dash.draw('slaBars', (el) => {
+  if (!N3.ready('agency_perf', 'kpi')) return N3.placeholder(el);
+  const city = dash.data('kpi').data[0].within_sla_pct;
+  const rows = dash.data('agency_perf').data.filter((r) => r.within_sla_pct !== null).sort((a, b) => a.within_sla_pct - b.within_sla_pct)
+    .map((r) => ({ label: N3.name(r.agency), short: r.agency, value: r.within_sla_pct, text: `${N3.fmt(r.within_sla_pct, 'pct')} · ${r.sla_label}`, color: N3.below(r.within_sla_pct, city),
+      tipText: `${N3.name(r.agency)}\nWithin target: ${N3.fmt(r.within_sla_pct, 'pct')}\nMost common target: ${r.sla_label}\nMedian to close: ${N3.dur(r.median_hrs)}\nRequests measured: ${N3.fmt(r.sla_measured, 'int')}` }));
+  N3.hbar(el, rows, 100, 'Bar chart of share of requests closed within target by agency; agencies below the citywide rate in red');
+});
+
+dash.draw('agencyPick', (sel) => {
+  const d = dash.data('agency_perf'), rows = d.status === 'ok' ? d.data : [];
+  if (!N3.pick && dash.data('kpi').status === 'ok') N3.pick = dash.data('kpi').data[0].top_late_agency;
+  sel.replaceChildren(...rows.map((r) => new Option(N3.name(r.agency), r.agency)));
+  if (rows.some((r) => r.agency === N3.pick)) sel.value = N3.pick;
+  sel.onchange = () => { N3.pick = sel.value; dash.draw('profile'); };
+});
+
+dash.draw('profile', (el) => {
+  if (!N3.ready('agency_perf', 'complaint_perf', 'kpi')) return N3.placeholder(el);
+  const a = dash.data('agency_perf').data.find((r) => r.agency === N3.pick) || dash.data('agency_perf').data[0];
+  if (!a) return N3.placeholder(el);
+  const city = dash.data('kpi').data[0].within_sla_pct;
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const stats = mk('div', 'n3-prof-stats');
+  const stat = (label, value, cls) => { const s = mk('div'); s.append(mk('span', '', label), mk('b', cls || '', value)); stats.append(s); };
+  stat('Requests', N3.fmt(a.requests, 'int'));
+  stat('Online or app', N3.fmt(a.digital_pct, 'pct'));
+  stat('Median to close', N3.dur(a.median_hrs));
+  stat('Within target', N3.fmt(a.within_sla_pct, 'pct'), a.within_sla_pct !== null && a.within_sla_pct < city ? 'n3-bad' : '');
+  stat('Median delay when late', a.days_over_target === null ? '—' : N3.dur(a.days_over_target * 24));
+  stat('Still open', N3.fmt(a.open, 'int'));
+  const parts = [mk('p', 'n3-prof-name', N3.name(a.agency)), stats];
+  const types = dash.data('complaint_perf').data.filter((r) => r.agency === a.agency).sort((x, y) => y.requests - x.requests).slice(0, 5);
+  if (types.length) {
+    const wrap = mk('div', 'n3-tablewrap'), t = mk('table', 'n3-table'), th = mk('thead'), hr = mk('tr'), tb = mk('tbody');
+    for (const h of ['Top complaint types', 'Requests', 'Within target', 'Median to close']) hr.append(mk('th', '', h));
+    th.append(hr); t.append(th);
+    for (const r of types) {
+      const tr = mk('tr');
+      tr.append(mk('td', '', N3.cap(r.complaint_type)), mk('td', '', N3.fmt(r.requests, 'int')),
+        mk('td', r.within_sla_pct !== null && r.within_sla_pct < city ? 'n3-bad' : '', N3.fmt(r.within_sla_pct, 'pct')), mk('td', '', N3.dur(r.median_hrs)));
+      tb.append(tr);
+    }
+    t.append(tb); wrap.append(t); parts.push(wrap);
+  } else parts.push(mk('p', 'n3-sub', "None of this agency's complaint types are in the city's top 25."));
+  el.replaceChildren(...parts);
+});
+
+dash.draw('agencyTable', (tb) => {
+  if (!N3.ready('agency_perf')) { tb.replaceChildren(); return; }
+  const cols = [['agency', 'text'], ['', 'svc'], ['requests', 'int'], ['digital_pct', 'h1'], ['median_days', 'h1'], ['p90_days', 'h1'], ['sla_label', 'text'], ['within_sla_pct', 'h1'], ['days_over_target', 'h1'], ['open', 'int']];
+  tb.replaceChildren(...dash.data('agency_perf').data.map((r) => {
+    const tr = document.createElement('tr');
+    for (const [c, k] of cols) { const td = document.createElement('td'); td.textContent = k === 'svc' ? (N3.names[r.agency] || '') : N3.fmt(r[c], k); tr.appendChild(td); }
+    return tr;
+  }));
+});
+
+dash.draw('breachBars', (el) => {
+  if (!N3.ready('complaint_perf', 'kpi')) return N3.placeholder(el);
+  const top = dash.data('kpi').data[0].top_late_agency, mode = N3.breach;
+  const over = (r) => N3.dur(r.days_over_target * 24);
+  const rows = dash.data('complaint_perf').data.filter((r) => r.late > 0 && r.days_over_target !== null)
+    .sort(mode === 'count' ? (a, b) => b.late - a.late : (a, b) => b.days_over_target - a.days_over_target).slice(0, 10)
+    .map((r) => ({ label: `${N3.cap(r.complaint_type)} (${r.agency})`, value: mode === 'count' ? r.late : r.days_over_target,
+      text: mode === 'count' ? `${N3.fmt(r.late, 'int')} late · ${over(r)} median delay` : `${over(r)} median delay · ${N3.fmt(r.late, 'int')} late`,
+      color: r.agency === top ? 'var(--cds-chart-status-critical)' : 'var(--cds-chart-muted)',
+      tipText: `${N3.name(r.agency)}\n${r.complaint_type}\nTarget: ${r.sla_label}\nMissed target: ${N3.fmt(r.late, 'int')} requests\nMedian delay beyond target: ${over(r)}\nWithin target: ${N3.fmt(r.within_sla_pct, 'pct')}` }));
+  N3.hbar(el, rows, d3.max(rows, (r) => r.value), mode === 'count' ? 'Bar chart of complaint types with the most requests that missed their target' : 'Bar chart of complaint types whose late requests missed their target by the most days');
+});
+
+dash.draw('bucket', (ol) => {
+  if (!N3.ready('complaint_perf')) { ol.replaceChildren(); return; }
+  const MANY = 2000, LONG = 3;
+  const test = { fix: (r) => r.late >= MANY && r.days_over_target >= LONG, speed: (r) => r.late >= MANY && r.days_over_target < LONG, watch: (r) => r.late < MANY && r.days_over_target >= LONG }[ol.dataset.bucket];
+  const rows = dash.data('complaint_perf').data.filter((r) => r.late > 0 && r.days_over_target !== null && test(r)).sort((a, b) => b.late - a.late);
+  ol.replaceChildren(...(rows.length ? rows.map((r) => {
+    const li = document.createElement('li'), s = document.createElement('span');
+    li.append(document.createTextNode(`${N3.cap(r.complaint_type)} (${r.agency})`));
+    s.textContent = `${N3.fmt(r.late, 'int')} late · ${N3.dur(r.days_over_target * 24)} median delay`;
+    li.append(s); return li;
+  }) : [Object.assign(document.createElement('li'), { textContent: 'None this month' })]));
+});
+
+dash.draw('backlog', (el) => {
+  if (!N3.ready('backlog', 'agency_perf')) return N3.placeholder(el);
+  const all = ['0-14 days', '15-30 days', '31+ days'], palette = [dash.colors[0], dash.colors[1], 'var(--cds-chart-status-critical)'];
+  const data = dash.data('backlog').data;
+  const bands = all.filter((b) => data.some((r) => r.age_band === b && r.open > 0)), colors = bands.map((b) => palette[all.indexOf(b)]);
+  const open = new Map(dash.data('agency_perf').data.map((r) => [r.agency, r.open]));
+  const rows = [...d3.group(data, (r) => r.agency)].map(([agency, rs]) => ({ agency, total: open.get(agency) ?? d3.sum(rs, (r) => r.open), ...Object.fromEntries(rs.map((r) => [r.age_band, r.open])) }))
+    .sort((a, b) => b.total - a.total);
+  el.replaceChildren();
+  const W = N3.width(el), rowH = 26, top = 26;
+  const svg = d3.select(el).append('svg').attr('width', '100%').attr('role', 'img').attr('aria-label', 'Stacked bar chart of open requests by agency and age');
+  const useFull = N3.measure(svg, rows.map((r) => N3.name(r.agency))) + 10 <= W * 0.45;
+  const lab = (a) => useFull ? N3.name(a) : a;
+  const lw = N3.measure(svg, rows.map((r) => lab(r.agency))) + 10, vw = N3.measure(svg, rows.map((r) => N3.fmt(r.total, 'int'))) + 8;
+  const H = top + rows.length * rowH;
+  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+  const x = d3.scaleLinear().domain([0, d3.max(rows, (r) => r.total) || 1]).range([0, W - lw - vw]);
+  let lx = lw;
+  bands.forEach((b, i) => {
+    const lg = svg.append('g').attr('transform', `translate(${lx},4)`);
+    lg.append('rect').attr('width', 10).attr('height', 10).attr('rx', 2).style('fill', colors[i]);
+    const t = lg.append('text').attr('x', 15).attr('y', 9).text(b.replace('-', '–') + ' old');
+    lx += 15 + t.node().getComputedTextLength() + 18;
+  });
+  const tt = N3.tip(el);
+  const g = svg.selectAll('g.r').data(rows).join('g').attr('class', 'r').attr('transform', (d, i) => `translate(0,${top + i * rowH})`);
+  g.append('text').attr('class', 'n3-lbl').attr('x', lw - 8).attr('y', rowH / 2).attr('dy', '0.35em').attr('text-anchor', 'end').text((d) => lab(d.agency));
+  bands.forEach((b, i) => {
+    g.append('rect').attr('x', (d) => lw + x(d3.sum(bands.slice(0, i), (p) => d[p] || 0))).attr('y', 5).attr('height', rowH - 10).attr('width', (d) => x(d[b] || 0)).style('fill', colors[i]);
+  });
+  g.append('text').attr('x', (d) => lw + x(d.total) + 5).attr('y', rowH / 2).attr('dy', '0.35em').text((d) => N3.fmt(d.total, 'int'));
+  g.append('rect').attr('width', W).attr('height', rowH).style('fill', 'transparent')
+    .on('pointermove', (ev, d) => tt.show(ev, `${N3.name(d.agency)}\nOpen: ${N3.fmt(d.total, 'int')}\n` + bands.map((b) => `${b.replace('-', '–')} old: ${N3.fmt(d[b] || 0, 'int')}`).join('\n')))
+    .on('pointerleave', () => tt.hide());
+});
+</script>
+</body>
+</html>
