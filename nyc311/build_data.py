@@ -32,10 +32,15 @@ def soql_csv(dataset, params, page=50000):
     while True:
         p = dict(params, **{'$limit': page, '$offset': offset})
         for attempt in range(4):
-            r = requests.get(f'{BASE}/{dataset}.csv', params=p, timeout=180)
-            if r.status_code == 200:
-                break
-            time.sleep(5 * (attempt + 1))
+            try:
+                r = requests.get(f'{BASE}/{dataset}.csv', params=p, timeout=300)
+                if r.status_code == 200:
+                    break
+            except requests.exceptions.RequestException as e:
+                if attempt == 3:
+                    raise
+                print(f'retrying after: {e}', flush=True)
+            time.sleep(10 * (attempt + 1))
         r.raise_for_status()
         df = pd.read_csv(io.StringIO(r.text))
         frames.append(df)
@@ -65,11 +70,31 @@ def load(args, start, end):
         '$where': f"created_date >= '{start.strftime(fmt)}' AND created_date < '{end.strftime(fmt)}'",
         '$order': 'unique_key'})
     sla = soql_csv(SLA_ID, {})
-    trend = soql_csv(REQUESTS_ID, {
-        '$select': 'date_trunc_ym(created_date) AS month, agency, open_data_channel_type, count(*) AS requests',
-        '$where': "created_date >= '2022-01-01T00:00:00'",
-        '$group': 'month, agency, open_data_channel_type', '$order': 'month'})
-    return req, sla, trend
+    return req, sla, monthly_trend(start, fmt)
+
+
+def monthly_trend(period_start, fmt):
+    """Channel counts per month since Jan 2022. Months already saved in data/trend.json are kept;
+    only missing months and the two most recent ones are fetched, one small query per month."""
+    saved = pd.DataFrame(columns=['month', 'channel', 'requests'])
+    path = OUT / 'trend.json'
+    if path.exists():
+        saved = pd.DataFrame(json.loads(path.read_text())['rows'])
+    months = pd.period_range('2022-01', period_start.strftime('%Y-%m'), freq='M')
+    recent = {str(m) for m in months[-2:]}
+    have = set(saved.month) if len(saved) else set()
+    frames = [saved[~saved.month.isin(recent)]] if len(saved) else []
+    for m in months:
+        if str(m) in have and str(m) not in recent:
+            continue
+        a, b = m.start_time, (m + 1).start_time
+        df = soql_csv(REQUESTS_ID, {
+            '$select': 'open_data_channel_type, count(*) AS requests',
+            '$where': f"created_date >= '{a.strftime(fmt)}' AND created_date < '{b.strftime(fmt)}'",
+            '$group': 'open_data_channel_type'})
+        df['month'] = str(m)
+        frames.append(df.rename(columns={'open_data_channel_type': 'channel'}))
+    return pd.concat(frames, ignore_index=True)
 
 
 def to_days(x):
